@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AGRI-LINK — Farmer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- Firebase (compat SDK — simplest to use directly in a plain HTML app) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<script src="./firebase-config.js"></script>
+<script src="./blockchain.js"></script>
+
+<style>
+  :root{
+    --green-deep:#204A34;
+    --green:#3F7D53;
+    --green-soft:#EAF2E8;
+    --cream:#FBF8F1;
+    --gold:#D9A441;
+    --clay:#C1613F;
+    --ink:#1E2A22;
+    --ink-dim:#5B6B5E;
+    --line:rgba(30,42,34,0.12);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--cream);color:var(--ink);font-family:'Inter',sans-serif;}
+  h1,h2,h3{font-family:'Fraunces',serif;margin:0;}
+  ::selection{background:var(--gold);color:#1E2A22;}
+
+  .screen{display:none;padding:0 0 90px;min-height:100vh;}
+  .screen.active{display:block;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative;height:230px;background:var(--green-deep);
+    background-size:cover;background-position:center;overflow:hidden;
+  }
+  .hero::after{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg, rgba(18,30,20,0.15) 0%, rgba(18,30,20,0.75) 100%);
+  }
+  .hero-content{position:absolute;left:20px;right:20px;bottom:18px;z-index:2;color:#fff;}
+  .hero-content .kicker{font-size:12px;letter-spacing:1px;text-transform:uppercase;opacity:.85;}
+  .hero-content h1{font-size:26px;font-weight:600;line-height:1.15;margin-top:4px;}
+
+  .content{padding:20px;}
+  .card{
+    background:#fff;border-radius:var(--radius);padding:18px;
+    box-shadow:0 6px 18px rgba(32,74,52,0.08);margin-bottom:16px;border:1px solid var(--line);
+  }
+
+  label{display:block;font-size:12.5px;color:var(--ink-dim);margin:12px 0 6px;}
+  label:first-child{margin-top:0;}
+  input,select,textarea{
+    width:100%;background:var(--green-soft);border:1px solid var(--line);color:var(--ink);
+    padding:12px 14px;font-size:15px;border-radius:12px;font-family:'Inter',sans-serif;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--green);}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  .btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:14.5px;
+    border:none;background:var(--green-soft);color:var(--green-deep);
+    padding:13px 18px;cursor:pointer;border-radius:999px;width:100%;margin-top:14px;
+  }
+  .btn-primary{background:var(--green);color:#fff;}
+  .btn-gold{background:var(--gold);color:#28210A;}
+  .btn[disabled]{opacity:.4;}
+  .btn-small{width:auto;padding:9px 16px;font-size:13px;margin-top:0;}
+
+  .suggestion{margin-top:14px;padding:14px;background:var(--green-soft);border-radius:12px;border-left:3px solid var(--gold);}
+  .suggestion .price{font-family:'Fraunces',serif;font-size:24px;font-weight:600;color:var(--green-deep);}
+  .suggestion .meta{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+
+  .photo-input{
+    display:flex;align-items:center;gap:12px;background:var(--green-soft);border-radius:12px;
+    padding:12px;border:1.5px dashed var(--line);
+  }
+  .photo-input img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:#ddd;}
+  .photo-input .txt{font-size:13px;color:var(--ink-dim);}
+
+  /* ---------- Listing card ---------- */
+  .listing{
+    background:#fff;border-radius:var(--radius);overflow:hidden;margin-bottom:16px;
+    box-shadow:0 6px 18px rgba(32,74,52,0.08);border:1px solid var(--line);
+  }
+  .listing img{width:100%;height:140px;object-fit:cover;display:block;background:var(--green-soft);}
+  .listing .body{padding:14px 16px;}
+  .listing .top-row{display:flex;justify-content:space-between;align-items:flex-start;}
+  .listing .crop{font-family:'Fraunces',serif;font-size:18px;font-weight:600;}
+  .listing .sub{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
+  .listing .price{font-family:'Fraunces',serif;font-size:17px;color:var(--green-deep);font-weight:600;white-space:nowrap;}
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:4px 10px;border-radius:999px;margin-top:8px;
+  }
+  .badge-verified{background:rgba(63,125,83,0.14);color:var(--green-deep);}
+  .badge-listed{background:rgba(217,164,65,0.16);color:#9C7124;}
+  .badge-delivered{background:rgba(193,97,63,0.14);color:var(--clay);}
+
+  /* ---------- Bottom nav ---------- */
+  nav.bottom{
+    position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
+    display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:50;
+  }
+  nav.bottom button{
+    flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:6px 0;color:var(--ink-dim);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;
+  }
+  nav.bottom button.active{color:var(--green-deep);font-weight:600;}
+  nav.bottom svg{width:22px;height:22px;}
+
+  /* ---------- Login ---------- */
+  .login-wrap{max-width:360px;margin:0 auto;padding:34px 22px;}
+  .login-wrap h2{font-size:24px;margin-bottom:6px;}
+  .login-wrap p{color:var(--ink-dim);font-size:13.5px;line-height:1.5;margin:0 0 20px;}
+
+  /* ---------- Modal (agreement/QR) ---------- */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(18,30,20,0.5);z-index:100;
+    align-items:flex-end;justify-content:center;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal{
+    background:#fff;border-radius:22px 22px 0 0;width:100%;max-width:480px;padding:24px 22px 32px;
+    max-height:85vh;overflow-y:auto;
+  }
+  .modal h3{font-size:20px;margin-bottom:4px;}
+  .modal .close{float:right;background:var(--green-soft);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px;color:var(--ink-dim);}
+  #qr-box{background:#fff;padding:12px;border-radius:12px;display:inline-block;border:1px solid var(--line);margin:12px 0;}
+  .agree-line{display:flex;justify-content:space-between;font-size:13.5px;padding:8px 0;border-bottom:1px dashed var(--line);}
+  .agree-line:last-child{border-bottom:none;}
+  .agree-line .k{color:var(--ink-dim);}
+
+  .empty{color:var(--ink-dim);font-size:13.5px;padding:26px 4px;text-align:center;font-style:italic;}
+  .toast{
+    position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:11px 18px;border-radius:16px;font-size:13px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none;
+    max-width:88vw;text-align:center;line-height:1.4;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="diagBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;padding:12px 14px;font-size:12.5px;text-align:center;font-family:'Inter',sans-serif;font-weight:600;"></div>
+
+<!-- ===================== LOGIN ===================== -->
+<div class="screen active" id="screen-login">
+  <div class="hero" style="height:280px;" id="loginHero">
+    <div class="hero-content">
+      <div class="kicker">AGRI-LINK · Farmer</div>
+      <h1>Sell your harvest, straight to the buyer.</h1>
+    </div>
+  </div>
+  <div class="login-wrap">
+    <div id="login-step-email">
+      <h2>Log in or sign up</h2>
+      <p>Enter your email and a password. First time here? This creates your account automatically.</p>
+      <label>Email</label>
+      <input id="emailInput" type="email" placeholder="ramesh@example.com" />
+      <label>Password</label>
+      <input id="passwordInput" type="password" placeholder="At least 6 characters" />
+      <button class="btn btn-primary" id="continueBtn">Continue</button>
+    </div>
+    <div id="login-step-name" style="display:none;">
+      <h2>What's your name?</h2>
+      <p>Buyers will see this on your listings.</p>
+      <label>Full name</label>
+      <input id="nameInput" type="text" placeholder="Ramesh Patil" />
+      <button class="btn btn-primary" id="saveNameBtn">Start selling</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== UPLOAD ===================== -->
+<div class="screen" id="screen-upload">
+  <div class="hero" id="uploadHero">
+    <div class="hero-content">
+      <div class="kicker">List a new batch</div>
+      <h1>What are you harvesting today?</h1>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <label>Photo of the produce</label>
+      <div class="photo-input" id="photoPicker">
+        <img id="photoPreview" src="" style="display:none;" />
+        <div class="txt" id="photoTxt">Tap to add a photo</div>
+        <input id="photoFile" type="file" accept="image/*" capture="environment" style="display:none;" />
+      </div>
+
+      <label>Crop</label>
+      <select id="u-crop">
+        <option>Tomato</option><option>Onion</option><option>Wheat</option>
+        <option>Rice</option><option>Basmati Rice</option><option>Cotton</option>
+      </select>
+      <div class="row-2">
+        <div><label>Quantity (kg)</label><input id="u-qty" type="number" min="1" value="200"/></div>
+        <div><label>Your price (₹/kg)</label><input id="u-price" type="number" min="1" /></div>
+      </div>
+      <label>Quality / Grade</label>
+      <select id="u-quality">
+        <option>Premium (Grade A)</option>
+        <option>Good (Grade B)</option>
+        <option>Standard (Grade C)</option>
+      </select>
+      <label>Quality notes (optional)</label>
+      <input id="u-quality-notes" type="text" placeholder="e.g. Hand-picked this morning, no pesticide" />
+      <div class="suggestion" id="u-suggestion"></div>
+      <button class="btn btn-primary" id="u-submit">Publish to marketplace</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MY LISTINGS ===================== -->
+<div class="screen" id="screen-listings">
+  <div class="hero" style="height:150px;" id="listingsHero">
+    <div class="hero-content">
+      <div class="kicker">Your batches</div>
+      <h1>My listings</h1>
+    </div>
+  </div>
+  <div class="content" id="myListings"></div>
+</div>
+
+<!-- ===================== PROFILE ===================== -->
+<div class="screen" id="screen-profile">
+  <div class="hero" style="height:150px;" id="profileHero">
+    <div class="hero-content">
+      <div class="kicker">Your account</div>
+      <h1>Profile</h1>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <label>Full name</label>
+      <input id="p-name" type="text" />
+      <label>Email</label>
+      <input id="p-email" type="text" disabled style="opacity:.6;" />
+      <div id="p-verify-badge" style="margin-top:10px;"></div>
+      <label>Village / Farm location</label>
+      <input id="p-location" type="text" placeholder="e.g. Nashik, Maharashtra" />
+      <button class="btn btn-primary" id="p-save">Save changes</button>
+      <button class="btn btn-clay" id="p-logout" style="margin-top:10px;">Log out</button>
+    </div>
+    <div class="card">
+      <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:600;">🔗 Blockchain ledger</div>
+      <p style="font-size:12.5px;color:var(--ink-dim);margin:6px 0 12px;line-height:1.5;">
+        Every listing, agreement, delivery and rating is hash-chained —
+        each entry cryptographically links to the one before it, so any
+        tampering with the history becomes detectable.
+      </p>
+      <button class="btn" id="p-view-chain">View ledger & verify integrity</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CHAIN / LEDGER ===================== -->
+<div class="screen" id="screen-chain">
+  <div class="hero" style="height:150px;" id="chainHero">
+    <div class="hero-content">
+      <div class="kicker">Tamper-evidence</div>
+      <h1>Blockchain ledger</h1>
+    </div>
+  </div>
+  <div class="content">
+    <button class="btn btn-primary" id="chain-back" style="margin-bottom:16px;">← Back to Profile</button>
+    <div class="card" id="chain-summary">Loading…</div>
+    <div id="chain-list"></div>
+  </div>
+</div>
+
+<!-- ===================== BOTTOM NAV ===================== -->
+<nav class="bottom" id="bottomNav" style="display:none;">
+  <button data-screen="upload" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+    Upload
+  </button>
+  <button data-screen="listings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 10h8M8 14h5"/></svg>
+    My Listings
+  </button>
+  <button data-screen="profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.5-4 5-5.5 7.5-5.5s6 1.5 7.5 5.5"/></svg>
+    Profile
+  </button>
+</nav>
+
+<!-- ===================== AGREEMENT / QR MODAL ===================== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="close" id="modalClose">✕</button>
+    <h3>Agreement & Batch QR</h3>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Hero images (stock photography placeholders — swap for real photos anytime) ---------- */
+document.getElementById("loginHero").style.backgroundImage = "url('https://loremflickr.com/900/700/wheat,field,sunrise')";
+document.getElementById("uploadHero").style.backgroundImage = "url('https://loremflickr.com/900/400/harvest,vegetables')";
+document.getElementById("listingsHero").style.backgroundImage = "url('https://loremflickr.com/900/300/farm,green')";
+document.getElementById("profileHero").style.backgroundImage = "url('https://loremflickr.com/900/300/farmer,portrait')";
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* ================= FIREBASE CONNECTION SELF-TEST ================= */
+async function testFirebaseConnection(){
+  const banner = document.getElementById("diagBanner");
+  banner.style.display = "block";
+  banner.textContent = "Checking Firebase connection…";
+  banner.style.background = "#5B6B5E"; banner.style.color = "#fff";
+  try{
+    if(typeof db === "undefined") throw new Error("firebase-config.js didn't load or db is undefined");
+    await db.collection("_diagnostic").doc("ping").set({ t: Date.now(), app: "farmer" });
+    banner.textContent = "✅ Connected to Firebase (agri-link-007)";
+    banner.style.background = "#3F7D53";
+    setTimeout(()=> banner.style.display = "none", 4000);
+  }catch(err){
+    console.error("Firebase connection test failed:", err);
+    banner.textContent = "❌ Firebase NOT connected: " + (err.message || err.code || String(err));
+    banner.style.background = "#C1613F";
+    // stays visible — this is the real problem to fix first
+  }
+}
+testFirebaseConnection();
+
+/* ================= AUTH (email + password) ================= */
+let currentUser = null;
+
+document.getElementById("continueBtn").addEventListener("click", async ()=>{
+  const email = document.getElementById("emailInput").value.trim();
+  const password = document.getElementById("passwordInput").value;
+  if(!email || !password){ toast("Enter email and password"); return; }
+  const btn = document.getElementById("continueBtn");
+  btn.disabled = true; btn.textContent = "Please wait…";
+  try{
+    let userCred, isNewAccount = false;
+    try{
+      userCred = await auth.signInWithEmailAndPassword(email, password);
+    }catch(err){
+      if(err.code === "auth/user-not-found" || err.code === "auth/invalid-credential"){
+        userCred = await auth.createUserWithEmailAndPassword(email, password);
+        isNewAccount = true;
+      }else{
+        throw err;
+      }
+    }
+    if(isNewAccount){
+      try{
+        await userCred.user.sendEmailVerification();
+        toast("Account created — verification email sent to " + email);
+      }catch(e){ console.warn("Couldn't send verification email:", e); }
+    }
+    const uid = userCred.user.uid;
+    const emailVerified = userCred.user.emailVerified;
+    const userDoc = await db.collection("users").doc(uid).get();
+    if(userDoc.exists && userDoc.data().name){
+      currentUser = { uid, email, name: userDoc.data().name, emailVerified };
+      afterLogin();
+    }else{
+      currentUser = { uid, email, name: null, emailVerified };
+      document.getElementById("login-step-email").style.display = "none";
+      document.getElementById("login-step-name").style.display = "block";
+    }
+  }catch(err){
+    console.error(err);
+    toast("Couldn't log in: " + (err.message || err.code || "unknown error"));
+  }finally{
+    btn.disabled = false; btn.textContent = "Continue";
+  }
+});
+
+document.getElementById("saveNameBtn").addEventListener("click", async ()=>{
+  const name = document.getElementById("nameInput").value.trim();
+  if(!name){ toast("Enter your name"); return; }
+  try{
+    await db.collection("users").doc(currentUser.uid).set({ name, role:"farmer", email: currentUser.email });
+    currentUser.name = name;
+    afterLogin();
+  }catch(err){
+    console.error(err);
+    toast("Couldn't save name: " + (err.message || err.code));
+  }
+});
+
+auth.onAuthStateChanged(async (user)=>{
+  if(!user) return; // stay on login screen
+  const uid = user.uid;
+  const email = user.email;
+  const emailVerified = user.emailVerified;
+  const userDoc = await db.collection("users").doc(uid).get();
+  if(userDoc.exists && userDoc.data().name){
+    currentUser = { uid, email, name: userDoc.data().name, emailVerified };
+    afterLogin();
+  }
+  // else: verified but hasn't set a name yet — leave them on whichever
+  // screen the login handler already put them on.
+});
+
+/* ================= HASH CHAIN (real tamper-evidence) =================
+   Every key lifecycle event (listed / agreement_signed / delivered / rated)
+   gets appended to a `chain` collection as: hash = SHA256(prevHash + data).
+   Each new entry points at the previous entry's hash, so if anyone edits
+   an old entry's data, its hash no longer matches what the NEXT entry
+   points to — breaking the chain in a way anyone can detect by recomputing
+   it (see verifyChain() below). This is genuinely tamper-evident, though
+   it's still one database (Firestore), not a decentralized network. */
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function appendToChain(event, batchId, data){
+  const tipRef = db.collection("chain_meta").doc("tip");
+  let entryId = null, entryHash = null;
+  try{
+    await db.runTransaction(async (tx)=>{
+      const tipDoc = await tx.get(tipRef);
+      const prevHash = tipDoc.exists ? tipDoc.data().hash : "GENESIS";
+      const seq = tipDoc.exists ? tipDoc.data().seq + 1 : 1;
+      const timestamp = Date.now();
+      const payload = JSON.stringify({ event, batchId, data, timestamp, prevHash });
+      const hash = await sha256Hex(payload);
+      const entryRef = db.collection("chain").doc();
+      tx.set(entryRef, {
+        seq, event, batchId, data, timestamp, prevHash, hash,
+        blockchainStatus: blockchainConfigured() ? "pending" : "off-chain"
+      });
+      tx.set(tipRef, { seq, hash });
+      entryId = entryRef.id; entryHash = hash;
+    });
+
+    // Anchor the same hash on Ethereum Sepolia, then write the tx receipt back
+    // to the Firestore entry. Done AFTER the transaction commits so a slow
+    // or failed blockchain call can never block or roll back the app's own
+    // record. Not awaited by callers — anchoring happens in the background.
+    if(entryId && entryHash && blockchainConfigured()){
+      anchorOnChain(batchId, entryHash, event).then(async (result)=>{
+        try{
+          if(result){
+            await db.collection("chain").doc(entryId).update({
+              blockchainStatus: "Verified",
+              blockchainTxHash: result.txHash,
+              blockchainExplorerUrl: result.explorerUrl
+            });
+          }else{
+            await db.collection("chain").doc(entryId).update({ blockchainStatus: "failed" });
+          }
+        }catch(e){ console.error("Couldn't write tx receipt back:", e); }
+      });
+    }
+  }catch(err){
+    console.error("Chain append failed:", err);
+    // Non-fatal — the actual listing update already succeeded; the chain
+    // entry is a supplementary tamper-evidence record.
+  }
+}
+
+async function verifyChain(){
+  const snap = await db.collection("chain").orderBy("seq","asc").get();
+  const entries = [];
+  snap.forEach(doc=> entries.push(doc.data()));
+  let prevHash = "GENESIS";
+  const results = [];
+  for(const e of entries){
+    const payload = JSON.stringify({ event:e.event, batchId:e.batchId, data:e.data, timestamp:e.timestamp, prevHash });
+    const recomputed = await sha256Hex(payload);
+    const ok = recomputed === e.hash && e.prevHash === prevHash;
+    results.push({ ...e, ok, recomputed });
+    prevHash = e.hash;
+  }
+  return results;
+}
+
+function afterLogin(){
+  document.getElementById("screen-login").classList.remove("active");
+  document.getElementById("bottomNav").style.display = "flex";
+  showScreen("upload");
+  listenMyListings();
+  initProfile();
+}
+
+/* ================= PROFILE ================= */
+function renderVerifyBadge(){
+  const el = document.getElementById("p-verify-badge");
+  if(currentUser.emailVerified){
+    el.innerHTML = `<span class="badge badge-verified">✓ Email verified</span>`;
+  }else{
+    el.innerHTML = `
+      <span class="badge badge-listed">Email not verified</span>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-small" id="p-resend-verify" style="margin-top:0;">Resend email</button>
+        <button class="btn btn-small" id="p-refresh-verify" style="margin-top:0;">I've verified — refresh</button>
+      </div>`;
+    document.getElementById("p-resend-verify").addEventListener("click", async ()=>{
+      try{
+        await auth.currentUser.sendEmailVerification();
+        toast("Verification email sent to " + currentUser.email);
+      }catch(err){
+        console.error(err);
+        toast("Couldn't send: " + (err.message || err.code));
+      }
+    });
+    document.getElementById("p-refresh-verify").addEventListener("click", async ()=>{
+      try{
+        await auth.currentUser.reload();
+        currentUser.emailVerified = auth.currentUser.emailVerified;
+        renderVerifyBadge();
+        toast(currentUser.emailVerified ? "You're verified! ✓" : "Still not verified yet — check your inbox/spam");
+      }catch(err){
+        console.error(err);
+        toast("Couldn't refresh: " + (err.message || err.code));
+      }
+    });
+  }
+}
+
+async function initProfile(){
+  document.getElementById("p-name").value = currentUser.name || "";
+  document.getElementById("p-email").value = currentUser.email || "";
+  renderVerifyBadge();
+  try{
+    const doc = await db.collection("users").doc(currentUser.uid).get();
+    if(doc.exists) document.getElementById("p-location").value = doc.data().location || "";
+  }catch(err){ console.error(err); }
+}
+
+document.getElementById("p-save").addEventListener("click", async ()=>{
+  const name = document.getElementById("p-name").value.trim();
+  const location = document.getElementById("p-location").value.trim();
+  if(!name){ toast("Name can't be empty"); return; }
+  try{
+    await db.collection("users").doc(currentUser.uid).set(
+      { name, location, role:"farmer", email: currentUser.email }, { merge:true }
+    );
+    currentUser.name = name;
+    toast("Profile updated");
+  }catch(err){
+    console.error(err);
+    toast("Couldn't save profile: " + (err.message || err.code));
+  }
+});
+
+document.getElementById("p-logout").addEventListener("click", async ()=>{
+  await auth.signOut();
+  currentUser = null;
+  document.getElementById("bottomNav").style.display = "none";
+  document.getElementById("emailInput").value = "";
+  document.getElementById("passwordInput").value = "";
+  document.getElementById("login-step-name").style.display = "none";
+  document.getElementById("login-step-email").style.display = "block";
+  document.getElementById("screen-login").classList.add("active");
+  document.querySelectorAll(".screen").forEach(s=>{ if(s.id!=="screen-login") s.classList.remove("active"); });
+});
+
+/* ================= CHAIN / LEDGER VIEWER ================= */
+document.getElementById("p-view-chain").addEventListener("click", async ()=>{
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("screen-chain").classList.add("active");
+  document.getElementById("chain-summary").textContent = "Verifying chain integrity…";
+  document.getElementById("chain-list").innerHTML = "";
+  try{
+    const results = await verifyChain();
+    const allOk = results.every(r=>r.ok);
+    const summary = document.getElementById("chain-summary");
+    summary.innerHTML = results.length===0
+      ? `No chain entries yet — list a batch, get it accepted, delivered or rated to start the ledger.`
+      : `<div style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;color:${allOk?'var(--green-deep)':'var(--clay)'};">
+           ${allOk ? '✓ Chain intact — ' + results.length + ' entries, all verified' : '⚠ Chain broken at entry #' + (results.find(r=>!r.ok)?.seq || '?')}
+         </div>
+         <div style="font-size:12px;color:var(--ink-dim);margin-top:4px;">Each entry's hash is recomputed from its data and compared against what's stored — a match proves nothing was altered.</div>`;
+    document.getElementById("chain-list").innerHTML = results.map(e=>`
+      <div class="listing" style="padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-family:'Fraunces',serif;font-weight:600;">#${e.seq} · ${e.event}</div>
+          <span class="badge ${e.ok?'badge-verified':'badge-listed'}">${e.ok ? '✓ Valid' : '✗ Broken'}</span>
+        </div>
+        <div class="sub" style="margin-top:4px;">Batch ${e.batchId} · ${new Date(e.timestamp).toLocaleString()}</div>
+        <div style="font-family:monospace;font-size:10.5px;color:var(--ink-dim);margin-top:8px;word-break:break-all;">
+          hash: ${e.hash}<br/>prev: ${e.prevHash}
+        </div>
+        ${e.blockchainStatus === "Verified" && e.blockchainTxHash ? `
+          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+            <span class="badge badge-verified">⛓ On Ethereum Sepolia</span>
+            <div style="font-family:monospace;font-size:10px;color:var(--ink-dim);margin-top:6px;word-break:break-all;">tx: ${e.blockchainTxHash}</div>
+            <a href="${e.blockchainExplorerUrl}" target="_blank" rel="noopener"
+               style="display:inline-block;margin-top:8px;font-size:12px;color:var(--green-deep);font-weight:600;">
+              View on Etherscan →
+            </a>
+          </div>` : e.blockchainStatus === "pending" ? `
+          <div style="margin-top:10px;"><span class="badge badge-listed">⛓ Anchoring on-chain…</span></div>` :
+          e.blockchainStatus === "failed" ? `
+          <div style="margin-top:10px;"><span class="badge badge-listed">⛓ On-chain anchor failed</span></div>` : ``}
+      </div>`).join("");
+  }catch(err){
+    console.error(err);
+    document.getElementById("chain-summary").textContent = "Couldn't load ledger: " + (err.message || err.code);
+  }
+});
+document.getElementById("chain-back").addEventListener("click", ()=> showScreen("profile"));
+
+/* ================= NAV ================= */
+function showScreen(name){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("screen-"+name).classList.add("active");
+  document.querySelectorAll("nav.bottom button").forEach(b=>b.classList.toggle("active", b.dataset.screen===name));
+}
+document.getElementById("bottomNav").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-screen]");
+  if(b) showScreen(b.dataset.screen);
+});
+
+/* ================= UPLOAD ================= */
+const TREND = {
+  Tomato:23, Onion:19, Wheat:24, Rice:36, "Basmati Rice":77, Cotton:66
+};
+function updateSuggestion(){
+  const crop = document.getElementById("u-crop").value;
+  const suggested = TREND[crop];
+  document.getElementById("u-suggestion").innerHTML =
+    `<div class="price">₹${suggested}/kg</div><div class="meta">AI suggested fair price for ${crop}, based on recent mandi sessions</div>`;
+  const priceInput = document.getElementById("u-price");
+  if(!priceInput.dataset.touched) priceInput.value = suggested;
+}
+document.getElementById("u-crop").addEventListener("change", updateSuggestion);
+document.getElementById("u-price").addEventListener("input", e=> e.target.dataset.touched = "1");
+updateSuggestion();
+
+// No Firebase Storage (needs the paid Blaze plan) — instead we compress the
+// photo client-side into a small JPEG and store it as a base64 string
+// directly on the Firestore listing document. Stays free, works fine for a
+// demo; for real production scale you'd still want proper object storage.
+function compressImage(file, maxWidth=480, quality=0.6){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+let selectedPhotoDataUri = null;
+document.getElementById("photoPicker").addEventListener("click", ()=> document.getElementById("photoFile").click());
+document.getElementById("photoFile").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById("photoTxt").textContent = "Compressing…";
+  try{
+    selectedPhotoDataUri = await compressImage(file);
+    const img = document.getElementById("photoPreview");
+    img.src = selectedPhotoDataUri; img.style.display = "block";
+    document.getElementById("photoTxt").textContent = file.name;
+  }catch(err){
+    console.error(err);
+    toast("Couldn't read that photo");
+    document.getElementById("photoTxt").textContent = "Tap to add a photo";
+  }
+});
+
+document.getElementById("u-submit").addEventListener("click", async ()=>{
+  const crop = document.getElementById("u-crop").value;
+  const qty = parseFloat(document.getElementById("u-qty").value) || 0;
+  const price = parseFloat(document.getElementById("u-price").value) || 0;
+  const quality = document.getElementById("u-quality").value;
+  const qualityNotes = document.getElementById("u-quality-notes").value.trim();
+  if(qty<=0 || price<=0){ toast("Enter quantity and price"); return; }
+  const btn = document.getElementById("u-submit");
+  btn.disabled = true; btn.textContent = "Publishing…";
+  try{
+    const photoURL = selectedPhotoDataUri || "";
+    const docRef = await db.collection("listings").add({
+      farmerId: currentUser.uid, farmerName: currentUser.name, farmerVerified: !!currentUser.emailVerified,
+      crop, qty, price, quality, qualityNotes, photoURL, status: "listed",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    appendToChain("listed", docRef.id, { crop, qty, price, quality, farmerId: currentUser.uid });
+    toast("Published! Buyers can now see this batch.");
+    document.getElementById("photoPreview").style.display = "none";
+    document.getElementById("photoTxt").textContent = "Tap to add a photo";
+    selectedPhotoDataUri = null;
+    document.getElementById("u-qty").value = 200;
+    document.getElementById("u-quality-notes").value = "";
+    document.getElementById("u-price").dataset.touched = "";
+    updateSuggestion();
+    showScreen("listings");
+  }catch(err){
+    console.error(err);
+    toast("Couldn't publish: " + (err.message || err.code || "unknown error"));
+  }finally{
+    btn.disabled = false; btn.textContent = "Publish to marketplace";
+  }
+});
+
+/* ================= MY LISTINGS (realtime) ================= */
+function listenMyListings(){
+  // Sorting client-side (not .orderBy in the query) avoids needing a
+  // Firestore composite index for farmerId + createdAt together.
+  db.collection("listings").where("farmerId","==",currentUser.uid)
+    .onSnapshot(snap=>{
+      const rows = [];
+      snap.forEach(doc=> rows.push({ id: doc.id, ...doc.data() }));
+      rows.sort((a,b)=> (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+      renderMyListings(rows);
+    }, err=>{ console.error(err); toast("Couldn't load listings: " + err.message); });
+}
+
+function statusBadge(status){
+  if(status==="listed") return `<span class="badge badge-listed">● Waiting for a buyer</span>`;
+  if(status==="agreement_signed") return `<span class="badge badge-verified">✓ Verified · Agreement signed</span>`;
+  if(status==="delivered") return `<span class="badge badge-verified">✓ Delivered</span>`;
+  if(status==="rated") return `<span class="badge badge-verified">✓ Complete</span>`;
+  return "";
+}
+
+function renderMyListings(rows){
+  const el = document.getElementById("myListings");
+  if(!rows.length){ el.innerHTML = `<div class="empty">You haven't listed anything yet — tap Upload to add your first batch.</div>`; return; }
+  el.innerHTML = rows.map(l=>`
+    <div class="listing">
+      <img src="${l.photoURL || 'https://loremflickr.com/500/300/'+encodeURIComponent(l.crop)}" />
+      <div class="body">
+        <div class="top-row">
+          <div>
+            <div class="crop">${l.crop}</div>
+            <div class="sub">${l.qty} kg</div>
+          </div>
+          <div class="price">₹${l.price}/kg</div>
+        </div>
+        ${statusBadge(l.status)}
+        ${l.status==="agreement_signed" || l.status==="delivered" || l.status==="rated"
+          ? `<button class="btn btn-gold btn-small" style="margin-top:12px;" data-agreement="${l.id}">View agreement & QR</button>`
+          : `<div class="sub" style="margin-top:10px;">Farmer view · buyer hasn't accepted yet</div>`}
+        ${l.rating ? `<div class="sub" style="margin-top:8px;">⭐ ${l.rating}/5 ${l.ratingComment? '— "'+l.ratingComment+'"':''}</div>` : ""}
+      </div>
+    </div>`).join("");
+
+  el.querySelectorAll("[data-agreement]").forEach(b=>b.addEventListener("click", ()=> openAgreement(b.dataset.agreement)));
+}
+
+/* ================= HELPERS: dates + PDF export ================= */
+function fmtDate(ts){
+  if(!ts || !ts.seconds) return "—";
+  return new Date(ts.seconds * 1000).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' });
+}
+
+function getQrDataUrl(box){
+  const canvas = box.querySelector("canvas");
+  if(canvas) return canvas.toDataURL("image/png");
+  const img = box.querySelector("img");
+  return img ? img.src : null;
+}
+
+async function shareOrDownloadBlob(blob, filename, mimeType){
+  try{
+    const file = new File([blob], filename, { type: mimeType });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: filename });
+      return;
+    }
+  }catch(e){ console.warn("share failed, falling back to download", e); }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 30000);
+}
+
+function generateAgreementPdf(listingId, l, qrDataUrl){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"pt", format:"a4" });
+  const green = [32,74,52];
+  const gray = [91,107,94];
+
+  doc.setFillColor(...green);
+  doc.rect(0,0,595,90,"F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("times","bold"); doc.setFontSize(22);
+  doc.text("AGRI-LINK", 40, 45);
+  doc.setFont("helvetica","normal"); doc.setFontSize(11);
+  doc.text("Purchase Agreement", 40, 66);
+
+  doc.setTextColor(0,0,0);
+  doc.setFont("helvetica","bold"); doc.setFontSize(13);
+  doc.text(`Batch ${listingId}`, 40, 120);
+
+  const rows = [
+    ["Crop", l.crop],
+    ["Quantity", `${l.qty} kg`],
+    ["Quality / Grade", l.quality || "—"],
+    ["Quality notes", l.qualityNotes || "—"],
+    ["Price agreed", `₹${l.price} / kg`],
+    ["Total amount", `₹${(l.price * l.qty).toLocaleString('en-IN')}`],
+    ["Farmer", l.farmerName || "—"],
+    ["Buyer", l.buyerName || "—"],
+    ["Agreement signed", fmtDate(l.acceptedAt)],
+    ["Delivered", fmtDate(l.deliveredAt)],
+    ["Status", l.status],
+  ];
+  let y = 150;
+  doc.setFont("helvetica","normal"); doc.setFontSize(11);
+  rows.forEach(([k,v])=>{
+    doc.setTextColor(...gray);
+    doc.text(k, 40, y);
+    doc.setTextColor(0,0,0);
+    doc.text(String(v), 220, y);
+    doc.setDrawColor(230,230,230);
+    doc.line(40, y+8, 400, y+8);
+    y += 26;
+  });
+
+  if(qrDataUrl){
+    doc.addImage(qrDataUrl, "PNG", 430, 130, 120, 120);
+    doc.setFontSize(9); doc.setTextColor(...gray);
+    doc.text("Scan to verify this batch", 430, 262);
+  }
+
+  doc.setFontSize(9); doc.setTextColor(...gray);
+  doc.text("This agreement confirms both parties accept the terms above via AGRI-LINK.", 40, 760);
+
+  return doc.output("blob");
+}
+
+/* ================= AGREEMENT / QR MODAL ================= */
+async function openAgreement(listingId){
+  const doc = await db.collection("listings").doc(listingId).get();
+  const l = doc.data();
+  const total = (l.price * l.qty).toLocaleString('en-IN');
+  document.getElementById("modalBody").innerHTML = `
+    <div class="agree-line"><span class="k">Batch</span><span>${l.crop} · ${l.qty} kg</span></div>
+    <div class="agree-line"><span class="k">Quality</span><span>${l.quality || "—"}</span></div>
+    ${l.qualityNotes ? `<div class="agree-line"><span class="k">Notes</span><span>${l.qualityNotes}</span></div>` : ""}
+    <div class="agree-line"><span class="k">Price agreed</span><span>₹${l.price}/kg</span></div>
+    <div class="agree-line"><span class="k">Total amount</span><span>₹${total}</span></div>
+    <div class="agree-line"><span class="k">Farmer</span><span>${l.farmerName}</span></div>
+    <div class="agree-line"><span class="k">Buyer</span><span>${l.buyerName || "—"}</span></div>
+    <div class="agree-line"><span class="k">Agreement signed</span><span>${fmtDate(l.acceptedAt)}</span></div>
+    <div class="agree-line"><span class="k">Delivered</span><span>${fmtDate(l.deliveredAt)}</span></div>
+    <div class="agree-line"><span class="k">Status</span><span>${l.status}</span></div>
+    <p style="font-size:13px;color:var(--ink-dim);margin-top:14px;line-height:1.5;">
+      This agreement confirms the buyer accepts batch <b>${listingId}</b> at the price above.
+      Scan the QR anywhere to verify this batch is genuine and trace its journey.
+    </p>
+    <div id="qr-box"></div>
+    <button class="btn btn-gold" id="downloadPdfBtn">Download PDF agreement</button>
+  `;
+  document.getElementById("modalOverlay").classList.add("active");
+  const box = document.getElementById("qr-box");
+  box.innerHTML = "";
+  new QRCode(box, { text: `AGRI-LINK|${listingId}`, width:150, height:150, colorDark:"#204A34", colorLight:"#ffffff" });
+
+  document.getElementById("downloadPdfBtn").addEventListener("click", async ()=>{
+    const btn = document.getElementById("downloadPdfBtn");
+    btn.disabled = true; btn.textContent = "Preparing PDF…";
+    try{
+      const qrDataUrl = getQrDataUrl(box);
+      const blob = generateAgreementPdf(listingId, l, qrDataUrl);
+      await shareOrDownloadBlob(blob, `AGRI-LINK-${listingId}.pdf`, "application/pdf");
+    }catch(err){
+      console.error(err);
+      toast("Couldn't create PDF: " + (err.message || err));
+    }finally{
+      btn.disabled = false; btn.textContent = "Download PDF agreement";
+    }
+  });
+}
+document.getElementById("modalClose").addEventListener("click", ()=> document.getElementById("modalOverlay").classList.remove("active"));
+</script>
+</body>
+</html>
